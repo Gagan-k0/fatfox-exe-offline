@@ -1,0 +1,97 @@
+'use strict';
+
+/**
+ * Standalone launcher for the offline API (TEST CHECKPOINT 1).
+ * Electron uses electron/embedded-api.js instead of this file.
+ */
+
+const http = require('http');
+const path = require('path');
+const fs = require('fs');
+const crypto = require('crypto');
+
+process.env.OFFLINE_MODE = 'true';
+process.env.NODE_ENV = process.env.NODE_ENV || 'offline';
+process.env.DEPLOYMENT_MODE = 'single';
+process.env.SINGLE_TENANT_SLUG = process.env.SINGLE_TENANT_SLUG || 'offline';
+
+const userData = process.env.FATFOX_USER_DATA || path.join(
+  process.env.APPDATA || process.env.HOME || process.cwd(),
+  'FatFox Admin'
+);
+process.env.NEDB_DATA_DIR = process.env.NEDB_DATA_DIR || path.join(userData, 'data');
+process.env.MEDIA_DIR = process.env.MEDIA_DIR || path.join(userData, 'media');
+
+const secretFile = path.join(userData, 'jwt-secret');
+if (!process.env.JWT_SECRET) {
+  try {
+    if (fs.existsSync(secretFile)) {
+      process.env.JWT_SECRET = fs.readFileSync(secretFile, 'utf8').trim();
+    } else {
+      fs.mkdirSync(userData, { recursive: true });
+      const secret = crypto.randomBytes(48).toString('hex');
+      fs.writeFileSync(secretFile, secret, { encoding: 'utf8' });
+      process.env.JWT_SECRET = secret;
+    }
+  } catch (err) {
+    process.env.JWT_SECRET = crypto.randomBytes(48).toString('hex');
+    console.warn('[offline-api] could not persist JWT secret:', err.message);
+  }
+}
+
+const app = require('../app-offline');
+const DEFAULT_PORT = Number(process.env.EMBEDDED_API_PORT || process.env.PORT || 4201);
+const FALLBACK_PORTS = [4201, 4202, 4203, 4204, 4205, 4206, 4207, 4208, 4209, 4210];
+
+const { attachSocket } = require('../helpers/offline-socket');
+
+function listen(port) {
+  return new Promise((resolve, reject) => {
+    const server = http.createServer(app);
+    attachSocket(server);
+    const onError = (err) => {
+      server.removeListener('listening', onListening);
+      try { server.close(); } catch (_) {}
+      reject(err);
+    };
+    const onListening = () => {
+      server.removeListener('error', onError);
+      resolve(server);
+    };
+    server.once('error', onError);
+    server.once('listening', onListening);
+    server.listen(port, '127.0.0.1');
+  });
+}
+
+async function start() {
+  const candidates = [DEFAULT_PORT, ...FALLBACK_PORTS.filter((p) => p !== DEFAULT_PORT)];
+  let lastErr = null;
+  for (const port of candidates) {
+    try {
+      const server = await listen(port);
+      process.env.EMBEDDED_API_PORT = String(port);
+      console.log(`[Offline API] Running on http://127.0.0.1:${port}`);
+      console.log(`[Offline API] NeDB data dir: ${process.env.NEDB_DATA_DIR}`);
+      console.log(`[Offline API] Media dir:     ${process.env.MEDIA_DIR}`);
+      return server;
+    } catch (err) {
+      lastErr = err;
+      if (err && (err.code === 'EADDRINUSE' || err.code === 'EACCES')) {
+        console.warn(`[Offline API] port ${port} unavailable (${err.code}), trying next`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr || new Error('No free port in 4201-4210');
+}
+
+if (require.main === module) {
+  start().catch((err) => {
+    console.error('[Offline API] failed to start:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { start };

@@ -1,0 +1,13 @@
+{
+  "name": "fatfox-offline-exe",
+  "version": "1.0.0",
+  "private": true,
+  "description": "FatFox Admin Panel — fully offline Windows EXE (NeDB + embedded Express).",
+  "author": "FatFox",
+  "main": "electron/main.js",
+  "scripts": {
+    "start:api": "node fatfox-api-offline/bin/www",
+    "test:api": "npm --prefix fatfox-api-offline test",
+    "postinstall": "npm install --prefix fatfox-api-offline"
+  }
+}

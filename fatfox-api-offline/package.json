@@ -1,0 +1,25 @@
+{
+  "name": "fatfox-api-offline",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Stripped-down FatFox API for the offline Windows EXE (NeDB, no Mongo/Redis/cloud).",
+  "main": "app-offline.js",
+  "scripts": {
+    "start": "node bin/www",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "body-parser": "^1.20.2",
+    "cookie-parser": "~1.4.6",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-fileupload": "^1.4.0",
+    "express-jwt": "^8.3.0",
+    "helmet": "^8.2.0",
+    "jsonwebtoken": "^9.0.0",
+    "morgan": "~1.10.0",
+    "nedb-promises": "^6.2.3",
+    "socket.io": "^4.8.4"
+  }
+}
